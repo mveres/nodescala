@@ -1,6 +1,7 @@
 package nodescala
 
 
+import com.sun.org.apache.xalan.internal.xsltc.cmdline.getopt.IllegalArgumentException
 
 import scala.language.postfixOps
 import scala.util.{Try, Success, Failure}
@@ -63,8 +64,54 @@ class NodeScalaSuite extends FunSuite {
     }
   }
 
+  test ("Now returns the result of the completed future"){
+    assert(Future.always(1).now === 1)
+  }
 
-  test("CancellationTokenSource should allow stopping the computation") {
+  test ("Now fails if the future is not completed"){
+    try {
+      Future.never.now
+    }
+    catch {
+      case e: NoSuchElementException => // alright
+    }
+  }
+
+  test ("Now fails if the future fails"){
+    val f = Future { throw new scala.IllegalArgumentException()}
+    blocking { Thread.sleep(10) }
+
+    try {
+      f.now
+    }
+    catch {
+      case e: scala.IllegalArgumentException => // alright
+    }
+  }
+
+  test ("continueWith works") {
+    val f1 = Future {
+      blocking { Thread.sleep(50) }
+      42
+    }
+
+    val f2 = f1.continueWith(f => 43)
+
+    assert(Await.result(f2, 70 millis) === 43)
+  }
+
+  test ("continue works"){
+    val f1 = Future {
+      blocking { Thread.sleep(50) }
+      42
+    }
+
+    val f2 = f1.continue(t => 43)
+
+    assert(Await.result(f2, 70 millis) === 43)
+  }
+
+  test ("CancellationTokenSource should allow stopping the computation") {
     val cts = CancellationTokenSource()
     val ct = cts.cancellationToken
     val p = Promise[String]()
@@ -79,6 +126,24 @@ class NodeScalaSuite extends FunSuite {
 
     cts.unsubscribe()
     assert(Await.result(p.future, 1 second) == "done")
+  }
+
+  test ("run works"){
+    val p = Promise[String]()
+    val working = Future.run() { ct =>
+      Future {
+        while (ct.nonCancelled) {
+          println("working")
+        }
+        p.success("done")
+      }
+    }
+    Future.delay(20 millis) onSuccess {
+      case _ => {
+        working.unsubscribe()
+        assert(Await.result(p.future, 20 millis) === "done")
+      }
+    }
   }
 
   class DummyExchange(val request: Request) extends Exchange {
