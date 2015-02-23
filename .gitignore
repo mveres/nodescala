@@ -2,3 +2,7 @@
 *.class
 
 *.jar
+
+project/project/target
+
+target

@@ -60,6 +60,7 @@ package object nodescala {
      */
     def delay(t: Duration): Future[Unit] =
       Future[Unit] { blocking { Thread.sleep(t.toMillis) } }
+
     /** Completes this future with user input.
      */
     def userInput(message: String): Future[String] = Future {
